@@ -1,0 +1,12 @@
+[Match]
+# Name of the interface created with the netdev file.
+Name = eqrx
+
+[Network]
+# Allowed IPs of this node.
+Address = ::2/128
+# You can set an endpoint of the peer here so it gets configured immediatly
+# without wgpeer. This is optional. If you leave this out wgpeer will fill it
+# in after it is started. The endpoint does not need to be set for the peer
+# to be able to initiate communication with this node. 
+#Endpoint=[::3]:51820

@@ -1,0 +1,48 @@
+[Unit]
+After=network-online.target local-fs.target
+
+[Service]
+ExecStart=/usr/local/bin/wgpeer
+
+# Administration of wireguard interfaces required either root access or
+# the capability CAP_NET_ADMIN. Give it to the process.
+CapabilityBoundingSet=CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN
+
+# Restart the process if it fails. This happens at startup when the wireguard
+# interface is not or partially configured. One could improve this.
+Restart=on-failure
+RestartSec=10s
+
+# While the process CAP_NET_ADMIN which gives it potential to be exploited
+# the following locks down its capabilities.
+DynamicUser=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+MountFlags=private
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+#PrivateUsers=true
+ProcSubset=pid
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+ProtectSystem=strict
+RemoveIPC=true
+RestrictAddressFamilies=AF_NETLINK AF_INET6 AF_INET
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SecureBits=noroot-locked
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

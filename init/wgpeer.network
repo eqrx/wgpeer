@@ -1,0 +1,27 @@
+[NetDev]
+# Name and description of the device.
+Name = eqrx
+Description = WireGuard
+
+Kind = wireguard
+
+[WireGuard]
+# Default port for wireguard.
+ListenPort = 51820
+# The private key of this node. It only belongs on this node.
+# Remember to change this file to perms 0o640 and ownership root:systemd-network
+PrivateKey = verygoodandsecurekeysoprotectedmuchwow 
+
+# Entry for each peer.
+[WireGuardPeer]
+# Public key that is generated from the peers private key
+PublicKey = publickeyofthepeerwewanttotalkto
+# Which IPs is the peer allowed to have. Don't leave it at ::2 obviously.
+AllowedIPs = ::2/128
+# This causes this node to reach out to the peer every 25 seconds. Per default
+# communication only happens when something is sent over the interfaces.
+# This solves some issues with stateful firewall and more importantly is increases
+# resilience of the mesh since wireguard assigns the source address of validated
+# inbound packages as the endpoint of the validated peer. So even then the
+# manager instance on one node breaks the mesh recovers fast (in many cases). 
+PersistentKeepalive = 25
