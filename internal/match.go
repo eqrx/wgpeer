@@ -7,7 +7,7 @@ import (
 	"net"
 	"sort"
 
-	wgpeer "dev.eqrx.net/wgpeer"
+	"dev.eqrx.net/wgpeer"
 	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
