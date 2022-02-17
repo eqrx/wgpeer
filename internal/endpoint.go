@@ -36,14 +36,14 @@ func newEndpoint(known []*net.UDPAddr, current *net.UDPAddr) *net.UDPAddr {
 // Addresses are considered equal if both are nil or the IP, Port and Zone
 // field are equal in both instances. A nil and a non nil instance are
 // considered unequal.
-func endpointsEqual(a, b *net.UDPAddr) bool {
-	if a == nil && b == nil {
+func endpointsEqual(left, right *net.UDPAddr) bool {
+	if left == nil && right == nil {
 		return true
 	}
 
-	if (a == nil) != (b == nil) {
+	if (left == nil) != (right == nil) {
 		return false
 	}
 
-	return a.IP.Equal(b.IP) && a.Port == b.Port && a.Zone == b.Zone
+	return left.IP.Equal(right.IP) && left.Port == right.Port && left.Zone == right.Zone
 }

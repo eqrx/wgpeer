@@ -60,7 +60,7 @@ func (l *link) refresh(ctx context.Context, log logr.Logger) error {
 		return err
 	}
 
-	wgCfg := wgtypes.Config{Peers: make([]wgtypes.PeerConfig, 0, len(l.conf.Peers)), ReplacePeers: false}
+	wgCfg := wgtypes.Config{Peers: make([]wgtypes.PeerConfig, 0, len(l.conf.Peers))}
 
 	for _, peer := range peers {
 		if e := l.wgPeerConfigFromPeer(ctx, log, peer); e != nil {

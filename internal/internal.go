@@ -35,15 +35,15 @@ func Run(ctx context.Context, log logr.Logger) error {
 		return fmt.Errorf("unmarshal config file: %w", err)
 	}
 
-	c, err := wgctrl.New()
+	control, err := wgctrl.New()
 	if err != nil {
 		return fmt.Errorf("open wg ctrl: %w", err)
 	}
 
-	link := link{&net.Resolver{PreferGo: true, StrictErrors: true}, configuration, c}
+	link := link{&net.Resolver{PreferGo: true, StrictErrors: true, Dial: nil}, configuration, control}
 	err = link.loop(ctx, log)
 
-	cErr := c.Close()
+	cErr := control.Close()
 
 	switch {
 	case err != nil && cErr != nil:
