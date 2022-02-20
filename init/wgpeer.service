@@ -2,7 +2,7 @@
 After=network-online.target local-fs.target
 
 [Service]
-ExecStart=/usr/local/bin/wgpeer
+ExecStart=/usr/bin/wgpeer
 
 # Administration of wireguard interfaces required either root access or
 # the capability CAP_NET_ADMIN. Give it to the process.
