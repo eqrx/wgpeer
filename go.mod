@@ -1,4 +1,4 @@
-module dev.eqrx.net/wgpeer
+module eqrx.net/wgpeer
 
 go 1.17
 

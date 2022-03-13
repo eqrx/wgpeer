@@ -1,3 +1,16 @@
+// Copyright (C) 2022 Alexander Sowitzki
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+// warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+// details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this program.
+// If not, see <https://www.gnu.org/licenses/>.
+
 // Package internal contains all the actual logic of the project.
 package internal
 
@@ -9,7 +22,8 @@ import (
 	"net"
 	"os"
 
-	"dev.eqrx.net/wgpeer"
+	"eqrx.net/wgpeer"
+	"eqrx.net/wgpeer/internal/service"
 	"github.com/go-logr/logr"
 	"golang.zx2c4.com/wireguard/wgctrl"
 )
@@ -40,8 +54,12 @@ func Run(ctx context.Context, log logr.Logger) error {
 		return fmt.Errorf("open wg ctrl: %w", err)
 	}
 
-	link := link{&net.Resolver{PreferGo: true, StrictErrors: true, Dial: nil}, configuration, control}
-	err = link.loop(ctx, log)
+	service := service.New(
+		&net.Resolver{PreferGo: true, StrictErrors: true, Dial: nil},
+		configuration,
+		control,
+	)
+	err = service.Loop(ctx, log)
 
 	cErr := control.Close()
 

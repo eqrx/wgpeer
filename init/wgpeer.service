@@ -43,6 +43,7 @@ SecureBits=noroot-locked
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
 UMask=0077
+DevicePolicy=closed
 
 [Install]
 WantedBy=multi-user.target

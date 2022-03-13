@@ -1,4 +1,4 @@
-[![Go Reference](https://pkg.go.dev/badge/dev.eqrx.net/wgpeer.svg)](https://pkg.go.dev/dev.eqrx.net/wgpeer)
+[![Go Reference](https://pkg.go.dev/badge/eqrx.net/wgpeer.svg)](https://pkg.go.dev/eqrx.net/wgpeer)
 # wgpeer
 
 wgpeer manages the endpoints of peers configured for a wireguard interface. It detects when handshakes with a peer

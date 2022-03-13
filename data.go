@@ -1,22 +1,25 @@
 // Package wgpeer defines the data structures used in the configuration file of this project.
 package wgpeer
 
+// Port is the default wireguard port.
+const Port = 51820
+
 // Configuration is the unmarshalled form of the configuration file and contains all information
 // of this node that are required for wgpeer.
 type Configuration struct {
 	// IfaceName if the wireguard interface we are managing.
 	IfaceName string `json:"ifaceName"`
 	// Peers is the set of peers this node wants to communicate with.
-	Peers []Peer `json:"peers"`
+	Peers []PeerConfiguration `json:"peers"`
 }
 
 // NewConfiguration creates a new Configuration instance with all values set.
-func NewConfiguration(ifaceName string, peers ...Peer) Configuration {
+func NewConfiguration(ifaceName string, peers ...PeerConfiguration) Configuration {
 	return Configuration{ifaceName, peers}
 }
 
-// Peer defines a peer this nodes wants to connect to vai wireguard.
-type Peer struct {
+// PeerConfiguration defines a peer this nodes wants to connect to vai wireguard.
+type PeerConfiguration struct {
 	// Public is the base64 encoded WG public key.
 	Public string `json:"public"`
 	// DNSName is the name of the DNS AAAA RR that contains the global endpint of the peer.
@@ -31,6 +34,6 @@ type Peer struct {
 }
 
 // NewPeer creates a new Peer instance object with all values set.
-func NewPeer(public, dnsName string, macs []string) Peer {
-	return Peer{public, dnsName, macs}
+func NewPeer(public, dnsName string, macs []string) PeerConfiguration {
+	return PeerConfiguration{public, dnsName, macs}
 }
