@@ -17,7 +17,6 @@ package internal
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -26,6 +25,7 @@ import (
 	"eqrx.net/wgpeer/internal/service"
 	"github.com/go-logr/logr"
 	"golang.zx2c4.com/wireguard/wgctrl"
+	"gopkg.in/yaml.v3"
 )
 
 const configPath = "/etc/wgpeer"
@@ -41,8 +41,7 @@ func Run(ctx context.Context, log logr.Logger) error {
 		return fmt.Errorf("read config file: %w", err)
 	}
 
-	decoder := json.NewDecoder(bytes.NewBuffer(cfgBytes))
-	decoder.DisallowUnknownFields()
+	decoder := yaml.NewDecoder(bytes.NewBuffer(cfgBytes))
 
 	var configuration wgpeer.Configuration
 	if err := decoder.Decode(&configuration); err != nil {
