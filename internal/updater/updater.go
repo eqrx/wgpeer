@@ -11,8 +11,8 @@
 // You should have received a copy of the GNU Affero General Public License along with this program.
 // If not, see <https://www.gnu.org/licenses/>.
 
-// Package service bundles all the other packages.
-package service
+// Package updater bundles all the other packages.
+package updater
 
 import (
 	"context"
@@ -32,8 +32,8 @@ type WGController interface {
 	ConfigureDevice(string, wgtypes.Config) error
 }
 
-// Service is a helper struct that bundles all the common handles.
-type Service struct {
+// Updater is a helper struct that bundles all the common handles.
+type Updater struct {
 	// Resolver is the DNS resolver used for quering global endpoints.
 	resolver peer.DNSResolver
 	// Conf contains the configuration of this node.
@@ -43,12 +43,12 @@ type Service struct {
 }
 
 // New creates a new service instance with the given handles.
-func New(resolver peer.DNSResolver, conf wgpeer.Configuration, wgctrl WGController) *Service {
-	return &Service{resolver, conf, wgctrl}
+func New(resolver peer.DNSResolver, conf wgpeer.Configuration, wgctrl WGController) *Updater {
+	return &Updater{resolver, conf, wgctrl}
 }
 
 // Loop updates the wireguard configuration until the given ctx is cancelled.
-func (s *Service) Loop(ctx context.Context, log logr.Logger) error {
+func (u *Updater) Loop(ctx context.Context, log logr.Logger) error {
 	timer := time.NewTimer(0)
 	defer timer.Stop()
 
@@ -57,7 +57,7 @@ func (s *Service) Loop(ctx context.Context, log logr.Logger) error {
 		case <-ctx.Done():
 			return nil
 		case <-timer.C:
-			err := s.refresh(ctx, log)
+			err := u.refresh(ctx, log)
 			if err != nil {
 				return err
 			}
@@ -71,8 +71,8 @@ func (s *Service) Loop(ctx context.Context, log logr.Logger) error {
 // matches it up with our configuration and IP neighbours, tries to find
 // global endpoints for peers that are not connected and not neighbours
 // and updates the interface.
-func (s *Service) refresh(ctx context.Context, log logr.Logger) error {
-	wgDevice, err := s.wgctrl.Device(s.conf.IfaceName)
+func (u *Updater) refresh(ctx context.Context, log logr.Logger) error {
+	wgDevice, err := u.wgctrl.Device(u.conf.IfaceName)
 	if err != nil {
 		return fmt.Errorf("get wg device: %w", err)
 	}
@@ -82,21 +82,21 @@ func (s *Service) refresh(ctx context.Context, log logr.Logger) error {
 		return fmt.Errorf("fetch neighbour addrs: %w", err)
 	}
 
-	peers, err := peer.Assemble(wgDevice.Peers, s.conf.Peers, neighbours)
+	peers, err := peer.Assemble(wgDevice.Peers, u.conf.Peers, neighbours)
 	if err != nil {
 		return fmt.Errorf("assemble peer: %w", err)
 	}
 
-	wgCfg := wgtypes.Config{Peers: make([]wgtypes.PeerConfig, 0, len(s.conf.Peers))}
+	wgCfg := wgtypes.Config{Peers: make([]wgtypes.PeerConfig, 0, len(u.conf.Peers))}
 
 	for _, peer := range peers {
-		if e := peer.WGConfig(ctx, log, s.resolver); e != nil {
+		if e := peer.WGConfig(ctx, log, u.resolver); e != nil {
 			wgCfg.Peers = append(wgCfg.Peers, *e)
 		}
 	}
 
 	if len(wgCfg.Peers) != 0 {
-		if err := s.wgctrl.ConfigureDevice(s.conf.IfaceName, wgCfg); err != nil {
+		if err := u.wgctrl.ConfigureDevice(u.conf.IfaceName, wgCfg); err != nil {
 			return fmt.Errorf("configure wg device %w", err)
 		}
 	}

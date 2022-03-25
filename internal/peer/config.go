@@ -16,6 +16,7 @@ package peer
 import (
 	"context"
 	"net"
+	"net/netip"
 	"time"
 
 	"eqrx.net/wgpeer"
@@ -38,37 +39,56 @@ const HandshakeTimeout = 140 * time.Second
 // address. Note that endpoints will be tried randomly if your DNS server returns RR in an randomized
 // order.
 func (p *Peer) WGConfig(ctx context.Context, log logr.Logger, resolver DNSResolver) *wgtypes.PeerConfig {
-	var endpoint *net.UDPAddr
+	var endpoint netip.AddrPort
+	if p.WG.Endpoint != nil {
+		endpoint = p.WG.Endpoint.AddrPort()
+	}
 
 	switch {
 	case !p.WG.LastHandshakeTime.IsZero() && time.Since(p.WG.LastHandshakeTime) < HandshakeTimeout:
 		// Has handshake, nothing to do.
 	case len(p.KnownEndpoints) != 0:
 		// Does not have a handshake and we know neighbours we can try.
-		endpoint = newEndpoint(p.KnownEndpoints, p.WG.Endpoint)
+		endpoint = newEndpoint(p.KnownEndpoints, endpoint)
 	case p.Config.DNSName != "":
 		// Neither has a handshake nor know we neighbours we can try but the peer has a DNS name.
-		ips, err := resolver.LookupIP(ctx, "ip6", p.Config.DNSName)
-		if err != nil {
-			log.Error(err, "peer not resolvable", "publickey", p.Config.Public, "dnsname", p.Config.DNSName)
-		} else if len(ips) != 0 {
-			endpoints := make([]*net.UDPAddr, 0, len(ips))
-			for _, ip := range ips {
-				endpoints = append(endpoints, &net.UDPAddr{IP: ip, Port: wgpeer.Port, Zone: ""})
-			}
-
-			endpoint = newEndpoint(endpoints, p.WG.Endpoint)
-		}
+		endpoint = p.resolve(ctx, log, resolver, endpoint)
 	}
 
-	if endpoint != nil {
+	if endpoint.IsValid() {
 		log.Info(
 			"switching endpoint",
 			"name", p.Config.DNSName, "from", p.WG.Endpoint, "to", endpoint,
 		)
 
-		return &wgtypes.PeerConfig{PublicKey: p.WG.PublicKey, Endpoint: endpoint}
+		return &wgtypes.PeerConfig{PublicKey: p.WG.PublicKey, Endpoint: net.UDPAddrFromAddrPort(endpoint)}
 	}
 
 	return nil
+}
+
+func (p *Peer) resolve(ctx context.Context, log logr.Logger, res DNSResolver, cur netip.AddrPort) netip.AddrPort {
+	ips, err := res.LookupIP(ctx, "ip6", p.Config.DNSName)
+
+	switch {
+	case err != nil:
+		log.Error(err, "peer not resolvable", "publickey", p.Config.Public, "dnsname", p.Config.DNSName)
+
+		return netip.AddrPort{}
+	case len(ips) != 0:
+		endpoints := make([]netip.AddrPort, 0, len(ips))
+
+		for _, ip := range ips {
+			addr, ok := netip.AddrFromSlice(ip)
+			if !ok {
+				panic("ip invalid")
+			}
+
+			endpoints = append(endpoints, netip.AddrPortFrom(addr, wgpeer.Port))
+		}
+
+		return newEndpoint(endpoints, cur)
+	default:
+		return netip.AddrPort{}
+	}
 }

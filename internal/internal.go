@@ -21,8 +21,9 @@ import (
 	"net"
 	"os"
 
+	"eqrx.net/service"
 	"eqrx.net/wgpeer"
-	"eqrx.net/wgpeer/internal/service"
+	"eqrx.net/wgpeer/internal/updater"
 	"github.com/go-logr/logr"
 	"golang.zx2c4.com/wireguard/wgctrl"
 	"gopkg.in/yaml.v3"
@@ -35,7 +36,7 @@ const configPath = "/etc/wgpeer"
 //
 // This is done by unmarshalling the configuration file, opening a wireguard
 // control interface and call loop from the link struct of the internal package.
-func Run(ctx context.Context, log logr.Logger) error {
+func Run(ctx context.Context, log logr.Logger, service *service.Service) error {
 	cfgBytes, err := os.ReadFile(configPath)
 	if err != nil {
 		return fmt.Errorf("read config file: %w", err)
@@ -53,12 +54,16 @@ func Run(ctx context.Context, log logr.Logger) error {
 		return fmt.Errorf("open wg ctrl: %w", err)
 	}
 
-	service := service.New(
+	updater := updater.New(
 		&net.Resolver{PreferGo: true, StrictErrors: true, Dial: nil},
 		configuration,
 		control,
 	)
-	err = service.Loop(ctx, log)
+
+	_ = service.MarkReady()
+	defer func() { _ = service.MarkStopping() }()
+
+	err = updater.Loop(ctx, log)
 
 	cErr := control.Close()
 

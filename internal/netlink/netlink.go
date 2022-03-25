@@ -16,7 +16,7 @@ package netlink
 
 import (
 	"fmt"
-	"net"
+	"net/netip"
 
 	"eqrx.net/wgpeer"
 	"github.com/vishvananda/netlink"
@@ -26,7 +26,7 @@ import (
 // on links we are connected to and returns them groupes by the MAC address they belong to.
 //
 // Addresses within groups are not sorted. Returns an error if netlink query failed.
-func NeighboursByMAC() (map[string][]*net.UDPAddr, error) {
+func NeighboursByMAC() (map[string][]netip.AddrPort, error) {
 	neighbourSet, err := netlink.NeighList(0, netlink.FAMILY_V6)
 	if err != nil {
 		return nil, fmt.Errorf("get ipv6 peers: %w", err)
@@ -42,25 +42,32 @@ func NeighboursByMAC() (map[string][]*net.UDPAddr, error) {
 		links[l.Attrs().Index] = l.Attrs().Name
 	}
 
-	neighbours := map[string][]*net.UDPAddr{}
+	neighbours := map[string][]netip.AddrPort{}
 
 	for _, neighbour := range neighbourSet {
-		if neighbour.State != netlink.NUD_REACHABLE || neighbour.IP.To16() == nil || !neighbour.IP.IsLinkLocalUnicast() {
+		if neighbour.State != netlink.NUD_REACHABLE {
 			continue
 		}
 
-		addr := neighbour.HardwareAddr.String()
-
-		existing, ok := neighbours[addr]
-		if !ok {
-			existing = make([]*net.UDPAddr, 0, 1)
+		ipAddr, addrOk := netip.AddrFromSlice(neighbour.IP)
+		if !addrOk {
+			panic("addr not ok")
 		}
 
-		neighbours[addr] = append(existing, &net.UDPAddr{
-			IP:   neighbour.IP,
-			Port: wgpeer.Port,
-			Zone: links[neighbour.LinkIndex],
-		})
+		if !ipAddr.Is6() || !ipAddr.IsLinkLocalUnicast() {
+			continue
+		}
+
+		mac := neighbour.HardwareAddr.String()
+
+		existingAddrs, ok := neighbours[mac]
+		if !ok {
+			existingAddrs = make([]netip.AddrPort, 0, 1)
+		}
+
+		neighbours[mac] = append(existingAddrs,
+			netip.AddrPortFrom(ipAddr.WithZone(links[neighbour.LinkIndex]), wgpeer.Port),
+		)
 	}
 
 	return neighbours, nil

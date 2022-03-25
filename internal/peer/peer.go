@@ -15,11 +15,11 @@
 package peer
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"sort"
 
 	"eqrx.net/wgpeer"
@@ -34,7 +34,7 @@ var errMismatch = errors.New("config mismatch")
 type Peer struct {
 	WG             wgtypes.Peer
 	Config         wgpeer.PeerConfiguration
-	KnownEndpoints []*net.UDPAddr
+	KnownEndpoints []netip.AddrPort
 }
 
 // DNSResolver is responsible for resolving a DNS record.
@@ -63,15 +63,15 @@ func wgPeersByPublic(peers []wgtypes.Peer) (map[string]wgtypes.Peer, error) {
 // Assemble takes a list of wireguard peer configurations and a list of wgpeer peer configurations, queries
 // neighbour endpoint addresses from the kernel and combines them into peer instances. An error is returned if
 // netlink access failed or information is inconsistent.
-func Assemble(wgs []wgtypes.Peer, confs []wgpeer.PeerConfiguration, neighs map[string][]*net.UDPAddr) ([]Peer, error) {
+func Assemble(wgs []wgtypes.Peer, cfs []wgpeer.PeerConfiguration, neighs map[string][]netip.AddrPort) ([]Peer, error) {
 	wgPeers, err := wgPeersByPublic(wgs)
 	if err != nil {
 		return nil, err
 	}
 
-	peers := make([]Peer, 0, len(confs))
+	peers := make([]Peer, 0, len(cfs))
 
-	for _, linkPeer := range confs {
+	for _, linkPeer := range cfs {
 		wgPeer, ok := wgPeers[linkPeer.Public]
 		if !ok {
 			return nil, fmt.Errorf("%w: our peer is not known by wg interface", errMismatch)
@@ -79,13 +79,11 @@ func Assemble(wgs []wgtypes.Peer, confs []wgpeer.PeerConfiguration, neighs map[s
 
 		delete(wgPeers, linkPeer.Public)
 
-		endpoints := []*net.UDPAddr{}
+		endpoints := []netip.AddrPort{}
 
 		for _, mac := range linkPeer.MACs {
 			if addrs, ok := neighs[mac]; ok {
-				sort.Slice(addrs, func(i, j int) bool {
-					return bytes.Compare(addrs[i].IP, addrs[j].IP) > 0
-				})
+				sort.Slice(addrs, func(i, j int) bool { return addrs[i].Addr().Less(addrs[j].Addr()) })
 
 				endpoints = append(endpoints, addrs...)
 			}
