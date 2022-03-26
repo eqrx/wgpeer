@@ -19,13 +19,15 @@ import (
 	"net/netip"
 	"time"
 
-	"eqrx.net/wgpeer"
 	"github.com/go-logr/logr"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
-// HandshakeTimeout specifies the duration after a wireguard handshake is assumed out of date.
-const HandshakeTimeout = 140 * time.Second
+const (
+	defaultPort = 51820
+	// HandshakeTimeout specifies the duration after a wireguard handshake is assumed out of date.
+	HandshakeTimeout = 140 * time.Second
+)
 
 // WGConfig deducts a wireguard PeerConfig instance from a given peer container. It returns nil
 // if not change needs to be performed.
@@ -39,40 +41,40 @@ const HandshakeTimeout = 140 * time.Second
 // address. Note that endpoints will be tried randomly if your DNS server returns RR in an randomized
 // order.
 func (p *Peer) WGConfig(ctx context.Context, log logr.Logger, resolver DNSResolver) *wgtypes.PeerConfig {
-	var endpoint netip.AddrPort
-	if p.WG.Endpoint != nil {
-		endpoint = p.WG.Endpoint.AddrPort()
+	var currentEndpoint, nextEndpoint netip.AddrPort
+	if p.wg.Endpoint != nil {
+		currentEndpoint = p.wg.Endpoint.AddrPort()
 	}
 
 	switch {
-	case !p.WG.LastHandshakeTime.IsZero() && time.Since(p.WG.LastHandshakeTime) < HandshakeTimeout:
+	case !p.wg.LastHandshakeTime.IsZero() && time.Since(p.wg.LastHandshakeTime) < HandshakeTimeout:
 		// Has handshake, nothing to do.
-	case len(p.KnownEndpoints) != 0:
+	case len(p.knownEndpoints) != 0:
 		// Does not have a handshake and we know neighbours we can try.
-		endpoint = newEndpoint(p.KnownEndpoints, endpoint)
-	case p.Config.DNSName != "":
+		nextEndpoint = newEndpoint(p.knownEndpoints, currentEndpoint)
+	case p.DNSName != "":
 		// Neither has a handshake nor know we neighbours we can try but the peer has a DNS name.
-		endpoint = p.resolve(ctx, log, resolver, endpoint)
+		nextEndpoint = p.resolve(ctx, log, resolver, currentEndpoint)
 	}
 
-	if endpoint.IsValid() {
+	if nextEndpoint.IsValid() && currentEndpoint != nextEndpoint {
 		log.Info(
 			"switching endpoint",
-			"name", p.Config.DNSName, "from", p.WG.Endpoint, "to", endpoint,
+			"name", p.DNSName, "from", currentEndpoint, "to", nextEndpoint,
 		)
 
-		return &wgtypes.PeerConfig{PublicKey: p.WG.PublicKey, Endpoint: net.UDPAddrFromAddrPort(endpoint)}
+		return &wgtypes.PeerConfig{PublicKey: p.wg.PublicKey, Endpoint: net.UDPAddrFromAddrPort(nextEndpoint)}
 	}
 
 	return nil
 }
 
 func (p *Peer) resolve(ctx context.Context, log logr.Logger, res DNSResolver, cur netip.AddrPort) netip.AddrPort {
-	ips, err := res.LookupIP(ctx, "ip6", p.Config.DNSName)
+	ips, err := res.LookupIP(ctx, "ip6", p.DNSName)
 
 	switch {
 	case err != nil:
-		log.Error(err, "peer not resolvable", "publickey", p.Config.Public, "dnsname", p.Config.DNSName)
+		log.Error(err, "peer not resolvable", "publickey", p.Public, "dnsname", p.DNSName)
 
 		return netip.AddrPort{}
 	case len(ips) != 0:
@@ -84,7 +86,7 @@ func (p *Peer) resolve(ctx context.Context, log logr.Logger, res DNSResolver, cu
 				panic("ip invalid")
 			}
 
-			endpoints = append(endpoints, netip.AddrPortFrom(addr, wgpeer.Port))
+			endpoints = append(endpoints, netip.AddrPortFrom(addr, defaultPort))
 		}
 
 		return newEndpoint(endpoints, cur)

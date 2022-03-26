@@ -18,9 +18,10 @@ import (
 	"fmt"
 	"net/netip"
 
-	"eqrx.net/wgpeer"
 	"github.com/vishvananda/netlink"
 )
+
+const defaultPort = 51820
 
 // NeighboursByMAC queries the linux kernel for IPv6 neighbours (link local addresses)
 // on links we are connected to and returns them groupes by the MAC address they belong to.
@@ -66,7 +67,7 @@ func NeighboursByMAC() (map[string][]netip.AddrPort, error) {
 		}
 
 		neighbours[mac] = append(existingAddrs,
-			netip.AddrPortFrom(ipAddr.WithZone(links[neighbour.LinkIndex]), wgpeer.Port),
+			netip.AddrPortFrom(ipAddr.WithZone(links[neighbour.LinkIndex]), defaultPort),
 		)
 	}
 

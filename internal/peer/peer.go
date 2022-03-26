@@ -22,19 +22,28 @@ import (
 	"net/netip"
 	"sort"
 
-	"eqrx.net/wgpeer"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 // errMismatch indicates that wgprobe configuration and current system state are not compatible.
 var errMismatch = errors.New("config mismatch")
 
-// Peer is a container for the current wireguard configuration of a peer, the information we
-// have about it and a list of neighbour endpoints of it.
+// Peer defines a peer this nodes wants to connect to vai wireguard.
 type Peer struct {
-	WG             wgtypes.Peer
-	Config         wgpeer.PeerConfiguration
-	KnownEndpoints []netip.AddrPort
+	// Public is the base64 encoded WG public key.
+	Public string `yaml:"public"`
+	// DNSName is the name of the DNS AAAA RR that contains the global endpint of the peer.
+	// Is refereshed continuously.
+	DNSName string `yaml:"dnsName"`
+	// MACs is the list of MAC addresses of the peer. This is used to determine if a link address
+	// belongs to it. Multiple MACs may be specified in case the node connects with multiple network
+	// cards (may it be with all at the same time or a single one out of the list).
+	// If multiple peer addresses are found the one belonging belonging to the earlier specified MAC
+	// is preferred.
+	MACs []string `yaml:"macs"`
+
+	wg             wgtypes.Peer     `yaml:"-"`
+	knownEndpoints []netip.AddrPort `yaml:"-"`
 }
 
 // DNSResolver is responsible for resolving a DNS record.
@@ -60,28 +69,26 @@ func wgPeersByPublic(peers []wgtypes.Peer) (map[string]wgtypes.Peer, error) {
 	return wgPeers, nil
 }
 
-// Assemble takes a list of wireguard peer configurations and a list of wgpeer peer configurations, queries
-// neighbour endpoint addresses from the kernel and combines them into peer instances. An error is returned if
-// netlink access failed or information is inconsistent.
-func Assemble(wgs []wgtypes.Peer, cfs []wgpeer.PeerConfiguration, neighs map[string][]netip.AddrPort) ([]Peer, error) {
+// Merge takes a list of wgpeers and a list of wgtypes peers, queries neighbour endpoint addresses from the kernel
+// and combines the results into the instances. An error is returned if netlink access failed or information is
+// inconsistent.
+func Merge(peers []Peer, wgs []wgtypes.Peer, neighs map[string][]netip.AddrPort) error {
 	wgPeers, err := wgPeersByPublic(wgs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	peers := make([]Peer, 0, len(cfs))
-
-	for _, linkPeer := range cfs {
-		wgPeer, ok := wgPeers[linkPeer.Public]
+	for peerIdx := range peers {
+		wgPeer, ok := wgPeers[peers[peerIdx].Public]
 		if !ok {
-			return nil, fmt.Errorf("%w: our peer is not known by wg interface", errMismatch)
+			return fmt.Errorf("%w: our peer is not known by wg interface", errMismatch)
 		}
 
-		delete(wgPeers, linkPeer.Public)
+		delete(wgPeers, peers[peerIdx].Public)
 
 		endpoints := []netip.AddrPort{}
 
-		for _, mac := range linkPeer.MACs {
+		for _, mac := range peers[peerIdx].MACs {
 			if addrs, ok := neighs[mac]; ok {
 				sort.Slice(addrs, func(i, j int) bool { return addrs[i].Addr().Less(addrs[j].Addr()) })
 
@@ -89,11 +96,12 @@ func Assemble(wgs []wgtypes.Peer, cfs []wgpeer.PeerConfiguration, neighs map[str
 			}
 		}
 
-		peers = append(peers, Peer{wgPeer, linkPeer, endpoints})
+		peers[peerIdx].wg = wgPeer
+		peers[peerIdx].knownEndpoints = endpoints
 	}
 
 	if len(wgPeers) == 0 {
-		return peers, nil
+		return nil
 	}
 
 	missing := []string{}
@@ -101,5 +109,5 @@ func Assemble(wgs []wgtypes.Peer, cfs []wgpeer.PeerConfiguration, neighs map[str
 		missing = append(missing, public)
 	}
 
-	return nil, fmt.Errorf("%w: wg interface has peers configured we don't know: %v", errMismatch, missing)
+	return fmt.Errorf("%w: wg interface has peers configured we don't know: %v", errMismatch, missing)
 }

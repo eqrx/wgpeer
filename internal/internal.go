@@ -22,8 +22,7 @@ import (
 	"os"
 
 	"eqrx.net/service"
-	"eqrx.net/wgpeer"
-	"eqrx.net/wgpeer/internal/updater"
+	"eqrx.net/wgpeer/internal/peer"
 	"github.com/go-logr/logr"
 	"golang.zx2c4.com/wireguard/wgctrl"
 	"gopkg.in/yaml.v3"
@@ -31,39 +30,34 @@ import (
 
 const configPath = "/etc/wgpeer"
 
+// Configuration is the unmarshalled form of the configuration file and contains all information
+// of this node that are required for wgpeer.
+type Configuration struct {
+	// IfaceName if the wireguard interface we are managing.
+	IfaceName string `yaml:"ifaceName"`
+	// Peers is the set of peers this node wants to communicate with.
+	Peers []peer.Peer `yaml:"peers"`
+	// Resolver is the DNS resolver used for quering global endpoints.
+	resolver peer.DNSResolver `yaml:"-"`
+	// WGCtrl is the netlink client to configure wireguard interfaces.
+	wgctrl *wgctrl.Client `yaml:"-"`
+}
+
 // Run performs configuration of the local wireguard instance according to
 // the configuration file at configPath.
-//
-// This is done by unmarshalling the configuration file, opening a wireguard
-// control interface and call loop from the link struct of the internal package.
-func Run(ctx context.Context, log logr.Logger, service *service.Service) error {
-	cfgBytes, err := os.ReadFile(configPath)
-	if err != nil {
-		return fmt.Errorf("read config file: %w", err)
-	}
-
-	decoder := yaml.NewDecoder(bytes.NewBuffer(cfgBytes))
-
-	var configuration wgpeer.Configuration
-	if err := decoder.Decode(&configuration); err != nil {
-		return fmt.Errorf("unmarshal config file: %w", err)
-	}
-
+func (c *Configuration) Run(ctx context.Context, log logr.Logger, service *service.Service) error {
 	control, err := wgctrl.New()
 	if err != nil {
 		return fmt.Errorf("open wg ctrl: %w", err)
 	}
 
-	updater := updater.New(
-		&net.Resolver{PreferGo: true, StrictErrors: true, Dial: nil},
-		configuration,
-		control,
-	)
+	c.resolver = &net.Resolver{PreferGo: true, StrictErrors: true, Dial: nil}
+	c.wgctrl = control
 
 	_ = service.MarkReady()
 	defer func() { _ = service.MarkStopping() }()
 
-	err = updater.Loop(ctx, log)
+	err = c.Loop(ctx, log)
 
 	cErr := control.Close()
 
@@ -77,4 +71,21 @@ func Run(ctx context.Context, log logr.Logger, service *service.Service) error {
 	default:
 		return nil
 	}
+}
+
+// Run loads the wgpeer configuration from credentials and runs Run on it.
+func Run(ctx context.Context, log logr.Logger, service *service.Service) error {
+	cfgBytes, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("read config file: %w", err)
+	}
+
+	decoder := yaml.NewDecoder(bytes.NewBuffer(cfgBytes))
+
+	var configuration Configuration
+	if err := decoder.Decode(&configuration); err != nil {
+		return fmt.Errorf("unmarshal config file: %w", err)
+	}
+
+	return configuration.Run(ctx, log, service)
 }

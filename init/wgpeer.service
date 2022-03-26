@@ -2,6 +2,7 @@
 After=network-online.target local-fs.target
 
 [Service]
+Type=notify
 ExecStart=/usr/bin/wgpeer
 
 # Administration of wireguard interfaces required either root access or
@@ -35,7 +36,7 @@ ProtectKernelTunables=true
 ProtectProc=invisible
 ProtectSystem=strict
 RemoveIPC=true
-RestrictAddressFamilies=AF_NETLINK AF_INET6 AF_INET
+RestrictAddressFamilies=AF_NETLINK AF_INET6 AF_INET AF_UNIX
 RestrictNamespaces=true
 RestrictRealtime=true
 RestrictSUIDSGID=true
